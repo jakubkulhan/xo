@@ -7,6 +7,22 @@ server.listen(process.env.PORT || process.env.VCAP_APP_PORT || 8000);
 
 app.use(express.static(__dirname + '/public'));
 
+app.get('/channel.html', function (req, res) {
+    var oneYear = 31536000;
+
+    res.set({
+        'Pragma': 'public',
+        'Cache-Control': 'max-age=' + oneYear,
+        'Expires': new Date(Date.now() + oneYear * 1000).toUTCString()
+    });
+
+    res.sendfile(__dirname + '/public/channel.html');
+});
+
+app.all('/xo/', function (req, res) {
+    res.sendfile(__dirname + '/public/xo.html');
+});
+
 var waitingFor = {}, games = {};
 
 io.sockets.on('connection', function (socket) {

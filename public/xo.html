@@ -17,7 +17,7 @@
     var backgroundImage = new Image();
 
     backgroundImage.onload = function () {
-        var uid = prompt('Enter your user ID:'), opponentUid, gameId;
+        var uid, opponentUid, gameId;
 
         var model = new XO.Model(30, 38);
 
@@ -30,7 +30,17 @@
                 ui.squares.cross(win);
 
                 ui.overlay.show(function () {
-                    alert(color === model.myColor ? 'you won :)' : 'you lost :(');
+                    FB.api(opponentUid, function (response) {
+                        FB.ui({
+                            method: 'feed',
+                            name: color === model.myColor ? 'I won :)' : 'I lost :(',
+                            caption: color === model.myColor
+                                ? 'I just beat ' + response.name + ' in five in a row!'
+                                : 'I just got beaten by ' + response.name + ' in five in a row...',
+                            link: 'http://apps.facebook.com/five-in-a-row/',
+                            picture: location.protocol + '//' + location.host + '/img/logo.png'
+                        });
+                    });
                 });
             }
         }
@@ -57,12 +67,32 @@
             },
 
             onOverlayButtonClick: function () {
-                opponentUid = prompt('Enter opponent user ID:');
+                if (uid) {
+                    next();
 
-                ui.overlay.setText('waiting...');
-                ui.overlay.hideButton();
+                } else {
+                    var interval = setInterval(function () {
+                        if (uid) {
+                            clearInterval(interval);
+                            next();
+                        }
+                    }, 100);
+                }
 
-                socket.emit('waitingFor', opponentUid);
+                function next() {
+                    FB.ui({
+                        method: 'apprequests',
+                        message: 'Play five in a row with me!',
+                        max_recipients: 1
+                    }, function (response) {
+                        if (response) {
+                            ui.overlay.setText('waiting...');
+                            ui.overlay.hideButton();
+
+                            socket.emit('waitingFor', response.to[0]);
+                        }
+                    });
+                }
             }
         });
 
@@ -71,20 +101,18 @@
 
         var socket = io.connect();
 
-        socket.emit('uid', uid);
-
         socket.on('game', function (gid, oid, myColor) {
+            gameId = gid;
+            opponentUid = oid;
+            model.reset(myColor);
+
             ui.squares.uncross();
             ui.squares.draw();
-            
+
             ui.overlay.hide(function () {
                 ui.overlay.setText('five in a row');
                 ui.overlay.setButtonText('play');
                 ui.overlay.showButton();
-
-                gameId = gid;
-                opponentUid = oid;
-                model.reset(myColor);
             });
         });
 
@@ -101,7 +129,63 @@
             tryWin(model.opponentColor);
             ui.squares.draw();
         });
+
+        window.onFBLogin = function (fbUid) {
+            uid = fbUid;
+            socket.emit('uid', uid);
+        };
     };
 
     backgroundImage.src = '/img/paper.png';
+</script>
+
+<div id="fb-root"></div>
+
+<script type="text/javascript">
+    window.fbAsyncInit = function () {
+        FB.init({
+            appId      : '556233954388196',
+            channelUrl : '//' + location.host + '/channel.html',
+            status     : true,
+            cookie     : true,
+            xfbml      : false
+        });
+
+        function onLogin(response) {
+            if (!response.authResponse || !response.authResponse.userID) {
+                FB.login(onLogin, { scope: 'publish_actions' });
+
+            } else {
+                var uid = response.authResponse.userID;
+
+                var options = decodeURIComponent(location.search.slice(1))
+                    .split('&')
+                    .reduce(function _reduce (a, b) {
+                        b = b.split('=');
+                        a[b[0]] = b[1];
+                        return a;
+                    }, {});
+
+                if (options.request_ids) {
+                    var requestIds = options.request_ids.split(',');
+
+                    while (requestIds.length) {
+                        FB.api(requestIds.pop() + '_' + uid, 'delete', function (response) {});
+                    }
+                }
+
+                window.onFBLogin(uid);
+            }
+        }
+
+        FB.getLoginStatus(onLogin);
+    };
+
+    (function(d, debug){
+        var js, id = 'facebook-jssdk', ref = d.getElementsByTagName('script')[0];
+        if (d.getElementById(id)) {return;}
+        js = d.createElement('script'); js.id = id; js.async = true;
+        js.src = "//connect.facebook.net/en_US/all" + (debug ? "/debug" : "") + ".js";
+        ref.parentNode.insertBefore(js, ref);
+    }(document, /*debug*/ false));
 </script>
