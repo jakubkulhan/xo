@@ -2,6 +2,7 @@
 <title>five in a row</title>
 
 <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/kineticjs/4.3.1/kinetic.min.js"></script>
+<script type="text/javascript" src="/socket.io/socket.io.js"></script>
 
 <script type="text/javascript" src="/js/xo/model.js"></script>
 <script type="text/javascript" src="/js/xo/ui.js"></script>
@@ -13,10 +14,26 @@
 <div id="container"></div>
 
 <script type="text/javascript">
-   var backgroundImage = new Image();
+    var backgroundImage = new Image();
 
     backgroundImage.onload = function () {
-        var model = new XO.Model(30, 38), clicks = 0;
+        var uid = prompt('Enter your user ID:'), opponentUid, gameId;
+
+        var model = new XO.Model(30, 38);
+
+        function tryWin(color) {
+            var win = model.checkWin(color);
+
+            if (win) {
+                socket.emit('end');
+
+                ui.squares.cross(win);
+
+                ui.overlay.show(function () {
+                    alert(color === model.myColor ? 'you won :)' : 'you lost :(');
+                });
+            }
+        }
 
         var ui = new XO.UI({
             container: 'container',
@@ -26,19 +43,64 @@
             backgroundImage: backgroundImage,
 
             onGridClick: function (row, col) {
-                if (!model.board[row][col]) {
-                    model.board[row][col] = clicks++ % 2 === 0 ? XO.Model.X : XO.Model.O;
-                    ui.squares.draw();
-                } 
+                if (model.lastMoveColor === model.myColor || model.board[row][col]) {
+                    return;
+                }
+
+                socket.emit('move', gameId, row, col, model.myColor);
+
+                model.board[row][col] = model.myColor;
+                model.lastMoveColor = model.myColor;
+
+                tryWin(model.myColor);
+                ui.squares.draw();
             },
 
             onOverlayButtonClick: function () {
-                ui.overlay.hide();
+                opponentUid = prompt('Enter opponent user ID:');
+
+                ui.overlay.setText('waiting...');
+                ui.overlay.hideButton();
+
+                socket.emit('waitingFor', opponentUid);
             }
         });
 
         ui.overlay.setText('five in a row');
         ui.overlay.setButtonText('play');
+
+        var socket = io.connect();
+
+        socket.emit('uid', uid);
+
+        socket.on('game', function (gid, oid, myColor) {
+            ui.squares.uncross();
+            ui.squares.draw();
+            
+            ui.overlay.hide(function () {
+                ui.overlay.setText('five in a row');
+                ui.overlay.setButtonText('play');
+                ui.overlay.showButton();
+
+                gameId = gid;
+                opponentUid = oid;
+                model.reset(myColor);
+            });
+        });
+
+        socket.on('timeout', function () {
+            ui.overlay.show(function () {
+                alert('timeout :|');
+            });
+        });
+
+        socket.on('move', function (row, col, opponentColor) {
+            model.board[row][col] = model.opponentColor;
+            model.lastMoveColor = model.opponentColor;
+
+            tryWin(model.opponentColor);
+            ui.squares.draw();
+        });
     };
 
     backgroundImage.src = '/img/paper.png';

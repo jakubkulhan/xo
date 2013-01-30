@@ -65,5 +65,23 @@ XO.UI.Squares = function (config) {
 
     squares.add(ys);
 
+    var line = new Kinetic.Line({
+        points: [],
+        stroke: 'green',
+        strokeWidth: 3,
+        visible: false
+    });
+
+    squares.add(line);
+
+    squares.cross = function (win) {
+        line.setPoints([ win.from.col * a + a/2, win.from.row * a + a/2, win.to.col * a + a/2, win.to.row * a + a/2 ]);
+        line.setVisible(true);
+    };
+
+    squares.uncross = function () {
+        line.setVisible(false);
+    };
+
     return squares;
 };
