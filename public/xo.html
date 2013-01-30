@@ -8,3 +8,38 @@
 <script type="text/javascript" src="/js/xo/ui/paper.js"></script>
 <script type="text/javascript" src="/js/xo/ui/squares.js"></script>
 <script type="text/javascript" src="/js/xo/ui/overlay.js"></script>
+<style type="text/css">body { width: 760px; height: 600px; margin: 0 auto; }</style>
+
+<div id="container"></div>
+
+<script type="text/javascript">
+   var backgroundImage = new Image();
+
+    backgroundImage.onload = function () {
+        var model = new XO.Model(30, 38), clicks = 0;
+
+        var ui = new XO.UI({
+            container: 'container',
+            width: 760,
+            height: 600,
+            model: model,
+            backgroundImage: backgroundImage,
+
+            onGridClick: function (row, col) {
+                if (!model.board[row][col]) {
+                    model.board[row][col] = clicks++ % 2 === 0 ? XO.Model.X : XO.Model.O;
+                    ui.squares.draw();
+                } 
+            },
+
+            onOverlayButtonClick: function () {
+                ui.overlay.hide();
+            }
+        });
+
+        ui.overlay.setText('five in a row');
+        ui.overlay.setButtonText('play');
+    };
+
+    backgroundImage.src = '/img/paper.png';
+</script>
